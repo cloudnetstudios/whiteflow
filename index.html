@@ -9,11 +9,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 
-  <style>
+    <style>
 
-    /* Base Styles */
+        /* Base Styles */
 * {
     margin: 0;
     padding: 0;
@@ -52,6 +53,57 @@ header {
     font-weight: 600;
     color: #4a86e8;
     letter-spacing: -0.5px;
+}
+
+.mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mode-btn {
+    background-color: #f0f6ff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 15px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: #5a7ab8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mode-btn.active {
+    background-color: #4a86e8;
+    color: white;
+}
+
+.status-offline {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ff6b6b;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: #ffeeee;
+}
+
+.status-online {
+    font-size: 12px;
+    font-weight: 600;
+    color: #50c878;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: #eeffee;
+}
+
+.users-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5a7ab8;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: #f0f6ff;
 }
 
 .actions {
@@ -133,7 +185,7 @@ header {
     flex-wrap: wrap;
 }
 
-.size-option, .color-option, .font-option, .shape-option {
+.size-option, .color-option, .font-option, .shape-option, .zoom-controls {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -192,12 +244,54 @@ header {
     color: #5a7ab8;
 }
 
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zoom-btn {
+    background-color: #f0f6ff;
+    border: none;
+    border-radius: 4px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5a7ab8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.zoom-btn:hover {
+    background-color: #e1ebff;
+}
+
+#zoom-level {
+    font-size: 14px;
+    font-weight: 600;
+    color: #5a7ab8;
+    width: 50px;
+    text-align: center;
+}
+
 /* Canvas Styles */
 .canvas-container {
     flex: 1;
     position: relative;
-    background-color: #ffffff;
+    background-color: #f0f6ff;
     overflow: hidden;
+}
+
+.canvas-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: 0 0;
+    overflow: auto;
 }
 
 #whiteboard {
@@ -206,6 +300,7 @@ header {
     left: 0;
     cursor: crosshair;
     background-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 /* Text Input Styles */
@@ -265,8 +360,51 @@ header {
     background-color: #e0e0e0;
 }
 
+/* User Cursors */
+#user-cursors {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 50;
+}
+
+.user-cursor {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.user-cursor::after {
+    content: attr(data-username);
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    margin-top: 5px;
+}
+
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .mode-toggle, .actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
     .toolbar {
         flex-direction: column;
     }
@@ -275,13 +413,19 @@ header {
         width: 100%;
     }
 }
-    
-  </style>
+        
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
             <div class="logo">whiteflow</div>
+            <div class="mode-toggle">
+                <button id="solo-mode" class="mode-btn active">solo mode</button>
+                <button id="collab-mode" class="mode-btn">online mode</button>
+                <span id="online-status" class="status-offline">offline</span>
+                <span id="users-count" class="users-count" style="display: none;">0 users</span>
+            </div>
             <div class="actions">
                 <button id="save-btn" class="btn"><i class="fas fa-save"></i> save</button>
                 <button id="clear-btn" class="btn"><i class="fas fa-trash"></i> clear</button>
@@ -340,11 +484,20 @@ header {
                         <option value="arrow">arrow</option>
                     </select>
                 </div>
+                
+                <div class="zoom-controls">
+                    <button id="zoom-in" class="zoom-btn"><i class="fas fa-search-plus"></i></button>
+                    <span id="zoom-level">100%</span>
+                    <button id="zoom-out" class="zoom-btn"><i class="fas fa-search-minus"></i></button>
+                    <button id="zoom-reset" class="zoom-btn"><i class="fas fa-compress-arrows-alt"></i></button>
+                </div>
             </div>
         </div>
         
         <div class="canvas-container">
-            <canvas id="whiteboard"></canvas>
+            <div class="canvas-wrapper">
+                <canvas id="whiteboard"></canvas>
+            </div>
         </div>
         
         <div class="text-input-container" style="display: none;">
@@ -352,26 +505,26 @@ header {
             <button id="add-text-btn">add text</button>
             <button id="cancel-text-btn">cancel</button>
         </div>
+        
+        <div id="user-cursors"></div>
     </div>
+    
+    <script src="script.js"></script>
 
-  <script>
+    <script>
 
-    // canvas setup
+        // canvas setup
 const canvas = document.getElementById('whiteboard');
 const ctx = canvas.getContext('2d');
 const container = document.querySelector('.canvas-container');
+const canvasWrapper = document.querySelector('.canvas-wrapper');
 
-// resize canvas to fit container
-function resizeCanvas() {
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-}
-
-// initialize canvas size
-resizeCanvas();
-
-// handle window resize
-window.addEventListener('resize', resizeCanvas);
+// socket.io setup for real-time collaboration
+let socket;
+let isOnlineMode = false;
+let userId = generateUserId();
+let userColor = getRandomColor();
+let userCursors = {};
 
 // drawing state variables
 let isDrawing = false;
@@ -386,6 +539,8 @@ let drawingHistory = [];
 let currentStep = -1;
 let textPosition = { x: 0, y: 0 };
 let shapeStartPosition = { x: 0, y: 0 };
+let currentPath = []; // Store the current drawing path
+let zoomLevel = 1;
 
 // tool elements
 const tools = document.querySelectorAll('.tool');
@@ -406,6 +561,81 @@ const cancelTextBtn = document.getElementById('cancel-text-btn');
 const saveBtn = document.getElementById('save-btn');
 const clearBtn = document.getElementById('clear-btn');
 const undoBtn = document.getElementById('undo-btn');
+
+// mode buttons
+const soloModeBtn = document.getElementById('solo-mode');
+const collabModeBtn = document.getElementById('collab-mode');
+const onlineStatus = document.getElementById('online-status');
+const usersCount = document.getElementById('users-count');
+
+// zoom controls
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
+const zoomResetBtn = document.getElementById('zoom-reset');
+const zoomLevelDisplay = document.getElementById('zoom-level');
+
+// resize canvas to fit container
+function resizeCanvas() {
+    // Set canvas size to a large fixed size for better drawing area
+    canvas.width = 3000;
+    canvas.height = 2000;
+    
+    // Center the canvas initially
+    centerCanvas();
+    
+    // Redraw canvas content
+    if (currentStep >= 0) {
+        restoreState(currentStep);
+    } else {
+        initCanvas();
+    }
+}
+
+// center the canvas in the viewport
+function centerCanvas() {
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    // Position the canvas in the center
+    canvasWrapper.scrollLeft = (canvas.width - containerWidth) / 2;
+    canvasWrapper.scrollTop = (canvas.height - containerHeight) / 2;
+}
+
+// initialize canvas size
+resizeCanvas();
+
+// handle window resize
+window.addEventListener('resize', () => {
+    // No need to resize the canvas, just update the view
+    updateZoomAndPan();
+});
+
+// apply zoom and pan transformations
+function updateZoomAndPan() {
+    canvasWrapper.style.transform = `scale(${zoomLevel})`;
+    zoomLevelDisplay.textContent = `${Math.round(zoomLevel * 100)}%`;
+}
+
+// zoom controls
+zoomInBtn.addEventListener('click', () => {
+    if (zoomLevel < 3) {
+        zoomLevel += 0.1;
+        updateZoomAndPan();
+    }
+});
+
+zoomOutBtn.addEventListener('click', () => {
+    if (zoomLevel > 0.3) {
+        zoomLevel -= 0.1;
+        updateZoomAndPan();
+    }
+});
+
+zoomResetBtn.addEventListener('click', () => {
+    zoomLevel = 1;
+    updateZoomAndPan();
+    centerCanvas();
+});
 
 // save current canvas state to history
 function saveState() {
@@ -449,35 +679,98 @@ function initCanvas() {
 function setupDrawingStyle() {
     ctx.strokeStyle = currentColor;
     ctx.fillStyle = currentColor;
-    ctx.lineWidth = currentSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
+    // Set different line widths based on the tool
     switch(currentTool) {
         case 'marker':
+            ctx.lineWidth = currentSize * 1.5;
             ctx.globalAlpha = 0.6;
             break;
         case 'pencil':
+            ctx.lineWidth = currentSize * 0.8;
             ctx.globalAlpha = 0.8;
             break;
         case 'pen':
+            ctx.lineWidth = currentSize;
+            ctx.globalAlpha = 1;
+            break;
         case 'shape':
+            ctx.lineWidth = currentSize;
             ctx.globalAlpha = 1;
             break;
         case 'eraser':
+            ctx.lineWidth = currentSize * 2;
             ctx.globalAlpha = 1;
             ctx.strokeStyle = '#ffffff';
             break;
     }
 }
 
-// drawing functions for different tools
+// convert canvas coordinates to account for zoom and scroll
+function getCanvasCoordinates(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+    
+    return { x, y };
+}
+
+// start drawing
+function startDrawing(e) {
+    const coords = getCanvasCoordinates(e.clientX, e.clientY);
+    lastX = coords.x;
+    lastY = coords.y;
+    
+    if (currentTool === 'text') {
+        textPosition = { x: lastX, y: lastY };
+        textInputContainer.style.display = 'flex';
+        textInput.focus();
+        return;
+    }
+    
+    if (currentTool === 'shape') {
+        shapeStartPosition = { x: lastX, y: lastY };
+    }
+    
+    isDrawing = true;
+    currentPath = []; // Start a new path
+    
+    // For free drawing tools, add the first point
+    if (['marker', 'pencil', 'pen', 'eraser'].includes(currentTool)) {
+        currentPath.push({ 
+            x: lastX, 
+            y: lastY, 
+            tool: currentTool,
+            color: currentTool === 'eraser' ? '#ffffff' : currentColor,
+            size: currentSize
+        });
+    }
+    
+    // If online, emit the drawing start event
+    if (isOnlineMode && socket) {
+        socket.emit('drawing-start', {
+            x: lastX,
+            y: lastY,
+            tool: currentTool,
+            color: currentTool === 'eraser' ? '#ffffff' : currentColor,
+            size: currentSize,
+            userId: userId
+        });
+    }
+}
+
+// draw based on mouse movement
 function draw(e) {
     if (!isDrawing) return;
     
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCanvasCoordinates(e.clientX, e.clientY);
+    const x = coords.x;
+    const y = coords.y;
     
     setupDrawingStyle();
     
@@ -486,17 +779,51 @@ function draw(e) {
         case 'pencil':
         case 'pen':
         case 'eraser':
+            // Draw a smooth curve between points
             ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
+            
+            if (currentPath.length > 0) {
+                const lastPoint = currentPath[currentPath.length - 1];
+                ctx.moveTo(lastPoint.x, lastPoint.y);
+            } else {
+                ctx.moveTo(lastX, lastY);
+            }
+            
             ctx.lineTo(x, y);
             ctx.stroke();
+            
+            // Add point to current path
+            currentPath.push({ 
+                x: x, 
+                y: y, 
+                tool: currentTool,
+                color: currentTool === 'eraser' ? '#ffffff' : currentColor,
+                size: currentSize
+            });
+            
+            // If online, emit the drawing event
+            if (isOnlineMode && socket) {
+                socket.emit('drawing', {
+                    x0: lastX,
+                    y0: lastY,
+                    x1: x,
+                    y1: y,
+                    tool: currentTool,
+                    color: currentTool === 'eraser' ? '#ffffff' : currentColor,
+                    size: currentSize,
+                    userId: userId
+                });
+            }
             break;
+            
         case 'shape':
             // For shape preview, we'll redraw from the saved state
             if (currentStep >= 0) {
                 restoreState(currentStep);
             } else {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
             
             drawShape(shapeStartPosition.x, shapeStartPosition.y, x, y);
@@ -505,6 +832,40 @@ function draw(e) {
     
     lastX = x;
     lastY = y;
+}
+
+// finish drawing
+function endDrawing() {
+    if (!isDrawing) return;
+    
+    if (currentTool === 'shape' && isDrawing) {
+        // If online, emit the shape drawing event
+        if (isOnlineMode && socket) {
+            socket.emit('shape-drawn', {
+                startX: shapeStartPosition.x,
+                startY: shapeStartPosition.y,
+                endX: lastX,
+                endY: lastY,
+                shapeType: currentShape,
+                color: currentColor,
+                size: currentSize,
+                userId: userId
+            });
+        }
+    }
+    
+    isDrawing = false;
+    saveState();
+    
+    // If online, emit the drawing end event
+    if (isOnlineMode && socket && currentPath.length > 0) {
+        socket.emit('drawing-end', {
+            path: currentPath,
+            userId: userId
+        });
+    }
+    
+    currentPath = []; // Clear the current path
 }
 
 // draw different shapes
@@ -567,6 +928,19 @@ function addTextToCanvas() {
     ctx.font = `${currentSize * 2}px ${currentFont}`;
     ctx.fillText(text, textPosition.x, textPosition.y);
     
+    // If online, emit the text added event
+    if (isOnlineMode && socket) {
+        socket.emit('text-added', {
+            text: text,
+            x: textPosition.x,
+            y: textPosition.y,
+            color: currentColor,
+            size: currentSize,
+            font: currentFont,
+            userId: userId
+        });
+    }
+    
     // save state after adding text
     saveState();
     
@@ -575,39 +949,193 @@ function addTextToCanvas() {
     textInput.value = '';
 }
 
+// draw on the canvas from remote user
+function drawRemote(data) {
+    const originalTool = currentTool;
+    const originalColor = currentColor;
+    const originalSize = currentSize;
+    
+    // Set the remote user's drawing style
+    currentTool = data.tool;
+    currentColor = data.color;
+    currentSize = data.size;
+    
+    setupDrawingStyle();
+    
+    ctx.beginPath();
+    ctx.moveTo(data.x0, data.y0);
+    ctx.lineTo(data.x1, data.y1);
+    ctx.stroke();
+    
+    // Restore original settings
+    currentTool = originalTool;
+    currentColor = originalColor;
+    currentSize = originalSize;
+}
+
+// draw shape from remote user
+function drawRemoteShape(data) {
+    const originalColor = currentColor;
+    const originalSize = currentSize;
+    
+    // Set the remote user's drawing style
+    currentColor = data.color;
+    currentSize = data.size;
+    
+    setupDrawingStyle();
+    
+    drawShape(data.startX, data.startY, data.endX, data.endY);
+    
+    // Restore original settings
+    currentColor = originalColor;
+    currentSize = originalSize;
+}
+
+// add text from remote user
+function addRemoteText(data) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = data.color;
+    ctx.font = `${data.size * 2}px ${data.font}`;
+    ctx.fillText(data.text, data.x, data.y);
+}
+
+// update remote user cursor position
+function updateRemoteCursor(data) {
+    let cursorElement = document.getElementById(`cursor-${data.userId}`);
+    
+    if (!cursorElement) {
+        cursorElement = document.createElement('div');
+        cursorElement.id = `cursor-${data.userId}`;
+        cursorElement.className = 'user-cursor';
+        cursorElement.style.backgroundColor = data.color;
+        cursorElement.setAttribute('data-username', `user-${data.userId.substring(0, 4)}`);
+        document.getElementById('user-cursors').appendChild(cursorElement);
+    }
+    
+    // Position the cursor
+    cursorElement.style.left = `${data.x}px`;
+    cursorElement.style.top = `${data.y}px`;
+}
+
+// remove remote user cursor
+function removeRemoteCursor(userId) {
+    const cursorElement = document.getElementById(`cursor-${userId}`);
+    if (cursorElement) {
+        cursorElement.remove();
+    }
+}
+
+// connect to socket.io server for real-time collaboration
+function connectToServer() {
+    // In a real implementation, you would connect to your actual server
+    // For this demo, we'll simulate the socket.io connection
+    console.log('Connecting to server...');
+    
+    // Simulate connection success
+    setTimeout(() => {
+        isOnlineMode = true;
+        onlineStatus.textContent = 'online';
+        onlineStatus.className = 'status-online';
+        usersCount.style.display = 'inline';
+        usersCount.textContent = '1 user';
+        
+        // Simulate other users joining
+        simulateCollaboration();
+    }, 1000);
+}
+
+// disconnect from socket.io server
+function disconnectFromServer() {
+    console.log('Disconnecting from server...');
+    
+    // Clear all remote cursors
+    document.getElementById('user-cursors').innerHTML = '';
+    
+    // Reset status
+    isOnlineMode = false;
+    onlineStatus.textContent = 'offline';
+    onlineStatus.className = 'status-offline';
+    usersCount.style.display = 'none';
+    
+    // Stop simulation
+    clearInterval(simulationInterval);
+}
+
+// simulate collaboration for demo purposes
+let simulationInterval;
+function simulateCollaboration() {
+    // Simulate users count changing
+    setTimeout(() => {
+        usersCount.textContent = '2 users';
+    }, 3000);
+    
+    setTimeout(() => {
+        usersCount.textContent = '3 users';
+    }, 6000);
+    
+    // Simulate remote cursor movements
+    const remoteUserId = 'remote-user-1';
+    const remoteColor = getRandomColor();
+    
+    simulationInterval = setInterval(() => {
+        if (!isOnlineMode) return;
+        
+        // Simulate cursor movement
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        
+        updateRemoteCursor({
+            userId: remoteUserId,
+            x: x,
+            y: y,
+            color: remoteColor
+        });
+    }, 2000);
+}
+
 // event listeners for drawing
-canvas.addEventListener('mousedown', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    lastX = e.clientX - rect.left;
-    lastY = e.clientY - rect.top;
-    
-    if (currentTool === 'text') {
-        textPosition = { x: lastX, y: lastY };
-        textInputContainer.style.display = 'flex';
-        textInput.focus();
-        return;
-    }
-    
-    if (currentTool === 'shape') {
-        shapeStartPosition = { x: lastX, y: lastY };
-    }
-    
-    isDrawing = true;
-});
-
+canvas.addEventListener('mousedown', startDrawing);
 canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', endDrawing);
+canvas.addEventListener('mouseout', endDrawing);
 
-canvas.addEventListener('mouseup', () => {
-    if (isDrawing && currentTool !== 'text') {
-        isDrawing = false;
-        saveState();
-    }
+// event listeners for touch devices
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const mouseEvent = new MouseEvent('mousedown', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+    });
+    canvas.dispatchEvent(mouseEvent);
 });
 
-canvas.addEventListener('mouseout', () => {
-    if (isDrawing && currentTool !== 'text') {
-        isDrawing = false;
-        saveState();
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const mouseEvent = new MouseEvent('mousemove', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+    });
+    canvas.dispatchEvent(mouseEvent);
+});
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const mouseEvent = new MouseEvent('mouseup', {});
+    canvas.dispatchEvent(mouseEvent);
+});
+
+// track cursor position for online mode
+canvas.addEventListener('mousemove', (e) => {
+    if (isOnlineMode && socket) {
+        const coords = getCanvasCoordinates(e.clientX, e.clientY);
+        socket.emit('cursor-move', {
+            x: coords.x,
+            y: coords.y,
+            userId: userId,
+            color: userColor
+        });
     }
 });
 
@@ -642,7 +1170,7 @@ document.querySelector('[data-tool="marker"]').classList.add('active');
 
 // size slider
 sizeSlider.addEventListener('input', () => {
-    currentSize = sizeSlider.value;
+    currentSize = parseInt(sizeSlider.value);
     sizeValue.textContent = `${currentSize}px`;
 });
 
@@ -691,13 +1219,47 @@ clearBtn.addEventListener('click', () => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     saveState();
+    
+    // If online, emit the clear event
+    if (isOnlineMode && socket) {
+        socket.emit('canvas-cleared', {
+            userId: userId
+        });
+    }
 });
 
 // undo button
 undoBtn.addEventListener('click', () => {
     if (currentStep > 0) {
         restoreState(currentStep - 1);
+        
+        // If online, emit the undo event
+        if (isOnlineMode && socket) {
+            socket.emit('canvas-state-changed', {
+                stateData: drawingHistory[currentStep],
+                userId: userId
+            });
+        }
     }
+});
+
+// mode toggle buttons
+soloModeBtn.addEventListener('click', () => {
+    if (isOnlineMode) {
+        disconnectFromServer();
+    }
+    
+    soloModeBtn.classList.add('active');
+    collabModeBtn.classList.remove('active');
+});
+
+collabModeBtn.addEventListener('click', () => {
+    if (!isOnlineMode) {
+        connectToServer();
+    }
+    
+    collabModeBtn.classList.add('active');
+    soloModeBtn.classList.remove('active');
 });
 
 // helper function to convert rgb to hex
@@ -714,14 +1276,117 @@ function rgbToHex(rgb) {
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
+// helper function to generate a random user ID
+function generateUserId() {
+    return 'user-' + Math.random().toString(36).substring(2, 10);
+}
+
+// helper function to get a random color
+function getRandomColor() {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
 // initialize canvas
 initCanvas();
 
 // disable undo button initially
 undoBtn.disabled = true;
 
-  </script>
+// create server.js file for real implementation
+// Note: This is just a placeholder for a real server implementation
+// In a real project, you would need to set up a Node.js server with Socket.io
+/*
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
+
+app.use(express.static('public'));
+
+const users = {};
+
+io.on('connection', (socket) => {
+    console.log('New user connected');
     
-    <script src="script.js"></script>
+    // Add user to the list
+    users[socket.id] = {
+        id: socket.id,
+        color: getRandomColor()
+    };
+    
+    // Broadcast updated user count
+    io.emit('users-count', Object.keys(users).length);
+    
+    // Handle drawing events
+    socket.on('drawing-start', (data) => {
+        socket.broadcast.emit('drawing-start', data);
+    });
+    
+    socket.on('drawing', (data) => {
+        socket.broadcast.emit('drawing', data);
+    });
+    
+    socket.on('drawing-end', (data) => {
+        socket.broadcast.emit('drawing-end', data);
+    });
+    
+    socket.on('shape-drawn', (data) => {
+        socket.broadcast.emit('shape-drawn', data);
+    });
+    
+    socket.on('text-added', (data) => {
+        socket.broadcast.emit('text-added', data);
+    });
+    
+    socket.on('cursor-move', (data) => {
+        socket.broadcast.emit('cursor-move', data);
+    });
+    
+    socket.on('canvas-cleared', (data) => {
+        socket.broadcast.emit('canvas-cleared', data);
+    });
+    
+    socket.on('canvas-state-changed', (data) => {
+        socket.broadcast.emit('canvas-state-changed', data);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+        
+        // Remove user from the list
+        delete users[socket.id];
+        
+        // Broadcast updated user count
+        io.emit('users-count', Object.keys(users).length);
+        
+        // Broadcast user disconnection to remove cursor
+        io.emit('user-disconnected', socket.id);
+    });
+});
+
+function getRandomColor() {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+*/
+        
+    </script>
 </body>
 </html>
